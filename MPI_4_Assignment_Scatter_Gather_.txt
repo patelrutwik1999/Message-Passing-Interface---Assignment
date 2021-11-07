@@ -1,0 +1,87 @@
+
+#include <stdio.h>
+#include "mpi.h"
+#define N 9         /* number of rows and columns in matrix */
+#define P 9
+MPI_Status status;
+
+
+
+int main(int argc, char** argv)
+{
+
+    int a[N][P], b[P][N], c[N][N], aa[N][N], rec_c[N][N];
+    int i, j, k, rank, commsize, workers, source, destination, rows, offset, sum = 0;
+    double t1, t2;
+    //struct timeval start, stop;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &commsize);
+
+    if ((N%commsize)!=0)
+    {
+        if (rank == 0)
+        {
+            printf("Invalid Number of Process.");
+        }
+        MPI_Finalize();
+    }
+    else {
+        /*Here if the rank of the process is the root then it will get into this loop.... Array a and b will be intialized..*/
+
+        for (i = 0; i < N; i++) {
+            for (j =        0; j < P; j++) {
+                a[i][j] = 1;
+            }
+        }
+
+        for (i = 0; i < P; i++) {
+            for (j = 0; j < N; j++) {
+                b[i][j] = 1;
+            }
+        }
+
+
+        t1 = MPI_Wtime();
+        MPI_Scatter(a, N * N / commsize, MPI_INT, aa, N * N / commsize, MPI_INT, 0, MPI_COMM_WORLD);
+
+        MPI_Bcast(b, N * N, MPI_INT, 0, MPI_COMM_WORLD);
+
+        MPI_Barrier(MPI_COMM_WORLD);
+
+        //Perform Matrix Multiplication :
+        int size = N / commsize;
+        for (i = 0; i < size; i++)
+        {
+            for (j = 0; j < N; j++)
+            {
+                c[i][j] = 0;
+                for (k = 0; k < P; k++) {
+                    c[i][j] = c[i][j] + aa[i][k] * b[k][j];
+                }
+            }
+        }
+
+        MPI_Gather(c, N * N / commsize, MPI_INT, rec_c, N * N / commsize, MPI_INT, 0, MPI_COMM_WORLD);
+
+        MPI_Barrier(MPI_COMM_WORLD);
+        t2 = MPI_Wtime();
+
+        printf("Difference in Time(Rank) :%d\t%f\n", rank, t2 - t1);
+        if (rank == 0)
+        {
+            double t3;
+            t3 = MPI_Wtime();
+            printf("Difference in Time(Rank) Final:%d\t%f\n", rank, t3 - t1);
+            printf("Here is the result matrix:\n");
+            for (i = 0; i < N; i++) {
+                for (j = 0; j < N; j++)
+                    printf("%d   ", rec_c[i][j]);
+                printf("\n");
+            }
+        }
+
+        MPI_Finalize();
+    }
+}
